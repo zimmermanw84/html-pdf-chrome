@@ -20,6 +20,16 @@ export { CompletionTrigger, CreateResult };
  */
 export interface CreateOptions {
   /**
+   * Path to Chrome binary.
+   * This is passed to ChromeLauncher.
+   * Needed to make sure we are using the correct version of Chrome.
+   *
+   * @type {string}
+   * @memberof CreateOptions
+   */
+  chromePath?: string;
+
+  /**
    * The host to connect to Chrome at.
    * If set, it attempts to connect to Chrome.
    * If this and port are not set, it spawns
@@ -101,7 +111,7 @@ export async function create(html: string, options?: CreateOptions): Promise<Cre
     if (!myOptions.host && !myOptions.port) {
       myOptions.port = await getRandomPort();
       await throwIfCanceled(myOptions);
-      chrome = await launchChrome(myOptions.port);
+      chrome = await launchChrome(myOptions);
     }
 
     try {
@@ -152,8 +162,8 @@ async function generate(html: string, options: CreateOptions): Promise<CreateRes
 
 // TODO add unit tests
 async function throwIfCanceled(options: CreateOptions) {
-  console.log(Date.now()); // TODO use to see where lengthy parts are
   if (options._canceled) {
+    console.log(Date.now()); // TODO use to see where lengthy parts are
     throw timeoutMessage;
   }
 }
@@ -164,9 +174,10 @@ async function throwIfCanceled(options: CreateOptions) {
  * @param {number} port the port for the launched Chrome to listen on.
  * @returns {Promise<Launcher>} The launched Launcher instance.
  */
-async function launchChrome(port: number): Promise<Launcher> {
+async function launchChrome(options: CreateOptions): Promise<Launcher> {
   const launcher = new Launcher({
-    port,
+    chromePath: options.chromePath, 
+    port: options.port,
     chromeFlags: [
       '--disable-gpu',
       '--headless',

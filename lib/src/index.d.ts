@@ -10,6 +10,15 @@ export { CompletionTrigger, CreateResult };
  */
 export interface CreateOptions {
     /**
+     * Path to Chrome binary.
+     * This is passed to ChromeLauncher.
+     * Needed to make sure we are using the correct version of Chrome.
+     *
+     * @type {string}
+     * @memberof CreateOptions
+     */
+    chromePath?: string;
+    /**
      * The host to connect to Chrome at.
      * If set, it attempts to connect to Chrome.
      * If this and port are not set, it spawns

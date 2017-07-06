@@ -30,6 +30,7 @@ describe('HtmlPdf', () => {
         // Start Chrome and wait for it to start listening for connections.
         port = await getRandomPort();
         launcher = new Launcher({
+          chromePath: '/usr/bin/google-chrome-stable',
           port,
           chromeFlags: [
             '--disable-gpu',
@@ -48,9 +49,10 @@ describe('HtmlPdf', () => {
       await launcher.kill();
     });
 
-    it('should spawn Chrome and generate a PDF', async () => {
+    it('should spawn Chrome and generate a PDF', async (done) => {
       const result = await HtmlPdf.create('<p>hello!</p>');
       expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+      done();
     });
 
     it('should handle a Chrome launch failure', async () => {
