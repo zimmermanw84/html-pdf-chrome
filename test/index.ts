@@ -113,7 +113,6 @@ describe('HtmlPdf', () => {
       const html = `
         <html>
           <head>
-            <meta charset="utf-8">
             <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
           </head>
           <body>
@@ -135,7 +134,6 @@ describe('HtmlPdf', () => {
       const html = `
         <html>
           <head>
-            <meta charset="utf-8">
             <link rel="stylesheet" href="data:text/css;charset=utf-8;base64,I3Rlc3Q6YmVmb3Jle2NvbnRlbnQ6J1Bhc3NlZCEnO30=">
           </head>
           <body>
@@ -152,9 +150,6 @@ describe('HtmlPdf', () => {
     it('should generate a PDF with multiple pages', async () => {
       const html = `
         <html>
-          <head>
-            <meta charset="utf-8">
-          </head>
           <body>
             <div style="page-break-after:always">Page 1</div>
             <div>Page 2</div>
@@ -180,6 +175,238 @@ describe('HtmlPdf', () => {
       expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
       const pdf = await getParsedPdf(result.toBuffer());
       expect(pdf.getRawTextContent()).to.contain('Facebook');
+    });
+
+    describe('CompletionTrigger', () => {
+
+      const timeoutError = new Error('CompletionTrigger timed out.');
+
+      describe('Timer', () => {
+
+        const html = `
+          <html>
+            <body>
+              <div id="test">Failed!</div>
+              <script>
+                setTimeout(() => {
+                  document.getElementById('test').innerHTML = 'Passed!';
+                }, 50);
+              </script>
+            </body>
+          </html>
+        `;
+
+        it('should generate prematurely without a CompletionTrigger', async () => {
+          const result = await HtmlPdf.create(html, {port});
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Failed!');
+        });
+
+        it('should generate correctly after being triggered', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Timer(60),
+          };
+          const result = await HtmlPdf.create(html, options);
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Passed!');
+        });
+
+      });
+
+      describe('Event', () => {
+
+        const html = `
+          <html>
+            <body>
+              <div id="test">Failed!</div>
+              <script>
+                setTimeout(() => {
+                  document.getElementById('test').innerHTML = 'Passed!';
+                  document.body.dispatchEvent(new Event('myEvent'));
+                }, 50);
+              </script>
+            </body>
+          </html>
+        `;
+
+        it('should generate prematurely without a CompletionTrigger', async () => {
+          const result = await HtmlPdf.create(html, {port});
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Failed!');
+        });
+
+        it('should time out', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Event('myEvent', null, 1),
+          };
+          try {
+            await HtmlPdf.create(html, options);
+            expect.fail();
+          } catch (err) {
+            expect(err).to.deep.equal(timeoutError);
+          }
+        });
+
+        it('should time out from listening to the wrong event', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Event('myEvent', '#test', 75),
+          };
+          try {
+            await HtmlPdf.create(html, options);
+            expect.fail();
+          } catch (err) {
+            expect(err).to.deep.equal(timeoutError);
+          }
+        });
+
+        it('should generate correctly after being triggered', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Event('myEvent'),
+          };
+          const result = await HtmlPdf.create(html, options);
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Passed!');
+        });
+
+      });
+
+      describe('Callback', () => {
+
+        const html = `
+          <html>
+            <body>
+              <div id="test">Failed!</div>
+              <script>
+                setTimeout(() => {
+                  document.getElementById('test').innerHTML = 'Timeout!';
+                  if (window.htmlPdfCb) {
+                    document.getElementById('test').innerHTML = 'Callback!';
+                    htmlPdfCb();
+                  }
+                }, 50);
+              </script>
+            </body>
+          </html>
+        `;
+
+        it('should generate prematurely without a CompletionTrigger', async () => {
+          const result = await HtmlPdf.create(html, {port});
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Failed!');
+        });
+
+        it('should time out', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Callback(null, 1),
+          };
+          try {
+            await HtmlPdf.create(html, options);
+            expect.fail();
+          } catch (err) {
+            expect(err).to.deep.equal(timeoutError);
+          }
+        });
+
+        it('should time out from listening to the wrong callback', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Callback('wrongCb', 75),
+          };
+          try {
+            await HtmlPdf.create(html, options);
+            expect.fail();
+          } catch (err) {
+            expect(err).to.deep.equal(timeoutError);
+          }
+        });
+
+        it('should generate correctly after being triggered', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Callback(),
+          };
+          const result = await HtmlPdf.create(html, options);
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Callback!');
+        });
+
+      });
+
+      describe('Element', () => {
+
+        const html = `
+          <html>
+            <body>
+              <div id="test">Failed!</div>
+              <script>
+                setTimeout(() => {
+                  const inserted = document.createElement('div');
+                  inserted.id = 'inserted';
+                  inserted.innerText = 'Passed!';
+                  document.body.insertBefore(inserted, document.getElementById('test'));
+                }, 50);
+              </script>
+            </body>
+          </html>
+        `;
+
+        it('should generate prematurely without a CompletionTrigger', async () => {
+          const result = await HtmlPdf.create(html, {port});
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Failed!');
+        });
+
+        it('should time out', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Element('div#inserted', 1),
+          };
+          try {
+            await HtmlPdf.create(html, options);
+            expect.fail();
+          } catch (err) {
+            expect(err).to.deep.equal(timeoutError);
+          }
+        });
+
+        it('should time out from listening for the wrong element', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Element('div#derp', 75),
+          };
+          try {
+            await HtmlPdf.create(html, options);
+            expect.fail();
+          } catch (err) {
+            expect(err).to.deep.equal(timeoutError);
+          }
+        });
+
+        it('should generate correctly after being triggered', async () => {
+          const options: HtmlPdf.CreateOptions = {
+            port,
+            completionTrigger: new HtmlPdf.CompletionTrigger.Element('div#inserted'),
+          };
+          const result = await HtmlPdf.create(html, options);
+          expect(result).to.be.an.instanceOf(HtmlPdf.CreateResult);
+          const pdf = await getParsedPdf(result.toBuffer());
+          expect(pdf.getRawTextContent()).startsWith('Passed!');
+        });
+
+      });
+
     });
 
   });
